@@ -1,4 +1,3 @@
-
 import type { UserConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import { defineConfig } from 'vite'
@@ -30,6 +29,8 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
+    base: '/ainance-app/', // GitHub Pages用のベースパス
+    root: '.', // ルートディレクトリを明示的に指定
     plugins: [react()],
     build,
     esbuild,
@@ -44,4 +45,3 @@ export default defineConfig(({ mode }) => {
     },
   }
 })
-
