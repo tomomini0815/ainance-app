@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { HashRouter as Router, Routes, Route } from 'react-router-dom'
 import './App.css'
 
 // Components
@@ -18,7 +18,7 @@ import IntegrationSettings from './pages/IntegrationSettings'
 function App() {
   return (
     <AuthProvider>
-      <Router basename="/ainance-app">
+      <Router>
         <div className="App">
           <Routes>
             {/* パブリックルート */}
