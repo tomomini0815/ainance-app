@@ -29,10 +29,21 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    base: '/ainance-app/', // GitHub Pages用のベースパス
+    base: './', // GitHub Pages用に相対パスを使用
     root: '.', // ルートディレクトリを明示的に指定
     plugins: [react()],
-    build,
+    build: {
+      ...build,
+      // アセットのパスを相対パスにする
+      assetsDir: 'assets',
+      rollupOptions: {
+        output: {
+          assetFileNames: 'assets/[name].[hash][extname]',
+          chunkFileNames: 'assets/[name].[hash].js',
+          entryFileNames: 'assets/[name].[hash].js'
+        }
+      }
+    },
     esbuild,
     define,
     resolve: {
