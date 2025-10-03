@@ -1,7 +1,6 @@
-
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import {ArrowLeft, Upload, Camera, FileImage, Check, X, Edit3, Save} from 'lucide-react'
+import {ArrowLeft, Upload, Camera, FileImage, Check, X, Edit3, Save, AlertCircle, Loader} from 'lucide-react'
 import Header from '../components/Header'
 
 interface ReceiptData {
@@ -13,6 +12,11 @@ interface ReceiptData {
   description: string
   confidence: number
   status: 'pending' | 'approved' | 'rejected'
+  tax?: number
+  subtotal?: number
+  currency?: string
+  error?: string
+  isProcessing?: boolean
 }
 
 const ReceiptProcessing: React.FC = () => {
@@ -25,7 +29,10 @@ const ReceiptProcessing: React.FC = () => {
       category: '消耗品費',
       description: '事務用品購入',
       confidence: 95,
-      status: 'pending'
+      status: 'pending',
+      tax: 120,
+      subtotal: 1080,
+      currency: 'JPY'
     },
     {
       id: '2',
@@ -35,15 +42,30 @@ const ReceiptProcessing: React.FC = () => {
       category: '接待交際費',
       description: 'クライアント打ち合わせ',
       confidence: 88,
-      status: 'approved'
+      status: 'approved',
+      tax: 53,
+      subtotal: 527,
+      currency: 'JPY'
     }
   ])
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editData, setEditData] = useState<Partial<ReceiptData>>({})
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isCameraActive, setIsCameraActive] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [capturedImage, setCapturedImage] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement> | FileList) => {
+    let files: FileList | null = null;
+    
+    if (event instanceof FileList) {
+      files = event;
+    } else {
+      files = event.target.files;
+    }
+    
     if (files && files.length > 0) {
       // シミュレーション: 新しいレシートを追加
       const newReceipt: ReceiptData = {
@@ -54,25 +76,178 @@ const ReceiptProcessing: React.FC = () => {
         category: '未分類',
         description: '解析中...',
         confidence: 0,
-        status: 'pending'
+        status: 'pending',
+        isProcessing: true
       }
       setUploadedReceipts(prev => [newReceipt, ...prev])
       
       // 3秒後にAI解析結果をシミュレート
       setTimeout(() => {
-        setUploadedReceipts(prev => prev.map(receipt => 
-          receipt.id === newReceipt.id 
-            ? {
-                ...receipt,
-                merchant: 'ファミリーマート',
-                amount: 850,
-                category: '消耗品費',
-                description: 'コピー用紙・文具',
-                confidence: 92
-              }
-            : receipt
-        ))
+        // 10%の確率で解析エラーをシミュレート
+        const isError = Math.random() < 0.1;
+        
+        if (isError) {
+          setUploadedReceipts(prev => prev.map(receipt => 
+            receipt.id === newReceipt.id 
+              ? {
+                  ...receipt,
+                  merchant: '解析エラー',
+                  description: '画像が不明瞭です。再アップロードしてください。',
+                  error: '画像の品質が低く、正確に解析できませんでした。',
+                  confidence: 0,
+                  isProcessing: false
+                }
+              : receipt
+          ))
+        } else {
+          // 解析成功のシミュレーション
+          const merchants = ['ファミリーマート', 'ローソン', 'サークルK', 'ダイエー', 'イトーヨーカドー'];
+          const descriptions = ['文房具購入', 'コピー用紙・文具', '事務用品', '消耗品費', '備品購入'];
+          const categories = ['消耗品費', '接待交際費', '旅費交通費', '通信費', '水道光熱費'];
+          
+          const merchant = merchants[Math.floor(Math.random() * merchants.length)];
+          const description = descriptions[Math.floor(Math.random() * descriptions.length)];
+          const category = categories[Math.floor(Math.random() * categories.length)];
+          const amount = Math.floor(Math.random() * 5000) + 100;
+          const tax = Math.floor(amount * 0.1);
+          const subtotal = amount - tax;
+          const confidence = Math.floor(Math.random() * 30) + 70; // 70-99%
+          
+          setUploadedReceipts(prev => prev.map(receipt => 
+            receipt.id === newReceipt.id 
+              ? {
+                  ...receipt,
+                  merchant,
+                  amount,
+                  category,
+                  description,
+                  confidence,
+                  tax,
+                  subtotal,
+                  currency: 'JPY',
+                  isProcessing: false
+                }
+              : receipt
+          ))
+        }
       }, 3000)
+    }
+  }
+
+  const handleCameraCapture = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        setIsCameraActive(true)
+      }
+    } catch (err) {
+      console.error("カメラアクセスに失敗しました:", err)
+      alert("カメラへのアクセスが許可されていません。")
+    }
+  }
+
+  const captureImage = () => {
+    if (videoRef.current) {
+      const canvas = document.createElement('canvas')
+      canvas.width = videoRef.current.videoWidth
+      canvas.height = videoRef.current.videoHeight
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height)
+        const imageData = canvas.toDataURL('image/png')
+        setCapturedImage(imageData)
+        
+        // カメラを停止
+        const stream = videoRef.current.srcObject as MediaStream
+        const tracks = stream.getTracks()
+        tracks.forEach(track => track.stop())
+        setIsCameraActive(false)
+        
+        // シミュレーション: 新しいレシートを追加
+        const newReceipt: ReceiptData = {
+          id: Date.now().toString(),
+          date: new Date().toISOString().split('T')[0],
+          merchant: 'AI解析中...',
+          amount: 0,
+          category: '未分類',
+          description: '解析中...',
+          confidence: 0,
+          status: 'pending',
+          isProcessing: true
+        }
+        setUploadedReceipts(prev => [newReceipt, ...prev])
+        
+        // 3秒後にAI解析結果をシミュレート
+        setTimeout(() => {
+          // 10%の確率で解析エラーをシミュレート
+          const isError = Math.random() < 0.1;
+          
+          if (isError) {
+            setUploadedReceipts(prev => prev.map(receipt => 
+              receipt.id === newReceipt.id 
+                ? {
+                    ...receipt,
+                    merchant: '解析エラー',
+                    description: '画像が不明瞭です。再撮影してください。',
+                    error: '画像の品質が低く、正確に解析できませんでした。',
+                    confidence: 0,
+                    isProcessing: false
+                  }
+                : receipt
+            ))
+          } else {
+            // 解析成功のシミュレーション
+            const merchants = ['ファミリーマート', 'ローソン', 'サークルK', 'ダイエー', 'イトーヨーカドー'];
+            const descriptions = ['文房具購入', 'コピー用紙・文具', '事務用品', '消耗品費', '備品購入'];
+            const categories = ['消耗品費', '接待交際費', '旅費交通費', '通信費', '水道光熱費'];
+            
+            const merchant = merchants[Math.floor(Math.random() * merchants.length)];
+            const description = descriptions[Math.floor(Math.random() * descriptions.length)];
+            const category = categories[Math.floor(Math.random() * categories.length)];
+            const amount = Math.floor(Math.random() * 5000) + 100;
+            const tax = Math.floor(amount * 0.1);
+            const subtotal = amount - tax;
+            const confidence = Math.floor(Math.random() * 30) + 70; // 70-99%
+            
+            setUploadedReceipts(prev => prev.map(receipt => 
+              receipt.id === newReceipt.id 
+                ? {
+                    ...receipt,
+                    merchant,
+                    amount,
+                    category,
+                    description,
+                    confidence,
+                    tax,
+                    subtotal,
+                    currency: 'JPY',
+                    isProcessing: false
+                  }
+                : receipt
+            ))
+          }
+        }, 3000)
+      }
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileUpload(e.dataTransfer.files)
     }
   }
 
@@ -119,6 +294,42 @@ const ReceiptProcessing: React.FC = () => {
           </div>
         </div>
 
+        {/* カメラプレビュー */}
+        {isCameraActive && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold">カメラ撮影</h2>
+              <button 
+                onClick={() => {
+                  if (videoRef.current && videoRef.current.srcObject) {
+                    const stream = videoRef.current.srcObject as MediaStream
+                    const tracks = stream.getTracks()
+                    tracks.forEach(track => track.stop())
+                  }
+                  setIsCameraActive(false)
+                }}
+                className="text-red-600 hover:text-red-800"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="relative">
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline
+                className="w-full h-64 object-cover rounded-lg bg-gray-200"
+              />
+              <button
+                onClick={captureImage}
+                className="absolute bottom-4 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-white rounded-full border-4 border-gray-300 flex items-center justify-center hover:bg-gray-100 transition-colors"
+              >
+                <div className="w-12 h-12 bg-red-500 rounded-full"></div>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* アップロードエリア */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">レシートをアップロード</h2>
@@ -131,6 +342,7 @@ const ReceiptProcessing: React.FC = () => {
                 accept="image/*"
                 multiple
                 onChange={handleFileUpload}
+                ref={fileInputRef}
                 className="hidden"
               />
               <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
@@ -139,14 +351,26 @@ const ReceiptProcessing: React.FC = () => {
             </label>
 
             {/* カメラ撮影 */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-colors">
+            <div 
+              className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-colors"
+              onClick={handleCameraCapture}
+            >
               <Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-700">カメラで撮影</p>
               <p className="text-xs text-gray-500">その場で撮影</p>
             </div>
 
             {/* ドラッグ&ドロップ */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+            <div 
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                isDragOver 
+                  ? 'border-purple-400 bg-purple-50' 
+                  : 'border-gray-300 hover:border-purple-400 hover:bg-purple-50'
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
               <FileImage className="w-8 h-8 text-gray-400 mx-auto mb-2" />
               <p className="text-sm font-medium text-gray-700">ドラッグ&ドロップ</p>
               <p className="text-xs text-gray-500">ここに画像をドロップ</p>
@@ -198,7 +422,24 @@ const ReceiptProcessing: React.FC = () => {
                           className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                         />
                       ) : (
-                        receipt.merchant
+                        <div>
+                          {receipt.isProcessing ? (
+                            <div className="flex items-center">
+                              <Loader className="w-4 h-4 mr-2 animate-spin text-blue-500" />
+                              <span>解析中...</span>
+                            </div>
+                          ) : (
+                            <>
+                              {receipt.merchant}
+                              {receipt.error && (
+                                <div className="flex items-center mt-1 text-red-600 text-xs">
+                                  <AlertCircle className="w-3 h-3 mr-1" />
+                                  {receipt.error}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -210,7 +451,20 @@ const ReceiptProcessing: React.FC = () => {
                           className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                         />
                       ) : (
-                        `¥${receipt.amount.toLocaleString()}`
+                        <div>
+                          {receipt.isProcessing ? (
+                            <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                          ) : (
+                            <>
+                              <div>¥{receipt.amount?.toLocaleString()}</div>
+                              {receipt.subtotal !== undefined && receipt.tax !== undefined && (
+                                <div className="text-xs text-gray-500">
+                                  税抜: ¥{receipt.subtotal.toLocaleString()} 税: ¥{receipt.tax.toLocaleString()}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -227,7 +481,11 @@ const ReceiptProcessing: React.FC = () => {
                           <option value="水道光熱費">水道光熱費</option>
                         </select>
                       ) : (
-                        receipt.category
+                        receipt.isProcessing ? (
+                          <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
+                        ) : (
+                          receipt.category
+                        )
                       )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
@@ -239,32 +497,51 @@ const ReceiptProcessing: React.FC = () => {
                           className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                         />
                       ) : (
-                        receipt.description
+                        receipt.isProcessing ? (
+                          <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                        ) : (
+                          receipt.description
+                        )
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center">
-                        <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                          <div
-                            className={`h-2 rounded-full ${
-                              receipt.confidence >= 90 ? 'bg-green-500' :
-                              receipt.confidence >= 70 ? 'bg-yellow-500' : 'bg-red-500'
-                            }`}
-                            style={{ width: `${receipt.confidence}%` }}
-                          ></div>
+                      {receipt.isProcessing ? (
+                        <div className="flex items-center">
+                          <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                            <div className="h-2 rounded-full bg-blue-500 animate-pulse" style={{ width: '50%' }}></div>
+                          </div>
+                          <span className="text-xs text-gray-600">解析中...</span>
                         </div>
-                        <span className="text-xs text-gray-600">{receipt.confidence}%</span>
-                      </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                receipt.confidence >= 90 ? 'bg-green-500' :
+                                receipt.confidence >= 70 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${receipt.confidence}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-xs text-gray-600">{receipt.confidence}%</span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        receipt.status === 'approved' ? 'bg-green-100 text-green-800' :
-                        receipt.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {receipt.status === 'approved' ? '承認済み' :
-                         receipt.status === 'rejected' ? '却下' : '保留中'}
-                      </span>
+                      {receipt.isProcessing ? (
+                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                          処理中
+                        </span>
+                      ) : (
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          receipt.status === 'approved' ? 'bg-green-100 text-green-800' :
+                          receipt.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {receipt.status === 'approved' ? '承認済み' :
+                           receipt.status === 'rejected' ? '却下' : '保留中'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
@@ -277,26 +554,32 @@ const ReceiptProcessing: React.FC = () => {
                           </button>
                         ) : (
                           <>
-                            <button
-                              onClick={() => handleEdit(receipt)}
-                              className="text-blue-600 hover:text-blue-900"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                            {receipt.status === 'pending' && (
+                            {receipt.isProcessing ? (
+                              <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                            ) : (
                               <>
                                 <button
-                                  onClick={() => handleApprove(receipt.id)}
-                                  className="text-green-600 hover:text-green-900"
+                                  onClick={() => handleEdit(receipt)}
+                                  className="text-blue-600 hover:text-blue-900"
                                 >
-                                  <Check className="w-4 h-4" />
+                                  <Edit3 className="w-4 h-4" />
                                 </button>
-                                <button
-                                  onClick={() => handleReject(receipt.id)}
-                                  className="text-red-600 hover:text-red-900"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
+                                {receipt.status === 'pending' && (
+                                  <>
+                                    <button
+                                      onClick={() => handleApprove(receipt.id)}
+                                      className="text-green-600 hover:text-green-900"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleReject(receipt.id)}
+                                      className="text-red-600 hover:text-red-900"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </>
+                                )}
                               </>
                             )}
                           </>
