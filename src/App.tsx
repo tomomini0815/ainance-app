@@ -1,4 +1,3 @@
-
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import './App.css'
 
@@ -19,7 +18,7 @@ import IntegrationSettings from './pages/IntegrationSettings'
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <Router basename="/ainance-app">
         <div className="App">
           <Routes>
             {/* パブリックルート */}
