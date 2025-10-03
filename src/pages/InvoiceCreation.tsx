@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {ArrowLeft, Plus, Save, Send, Eye, Download, Search, Calendar, Calculator, User, Building, FileText, Mail, Phone, X, Check, Copy, Trash2} from 'lucide-react'
 import Header from '../components/Header'
@@ -68,6 +67,11 @@ const InvoiceCreation: React.FC = () => {
     }
   ])
 
+  // 追加の状態変数
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [signature, setSignature] = useState<string | null>(null);
+  const [language, setLanguage] = useState<'ja' | 'en' | 'zh'>('ja');
+
   const [customers] = useState<Customer[]>([
     {
       id: '1',
@@ -120,6 +124,10 @@ const InvoiceCreation: React.FC = () => {
     }
   ])
 
+  // 署名機能のための参照と状態
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawing = useRef(false);
+
   const [recentInvoices, setRecentInvoices] = useState<Invoice[]>([
     {
       id: '1',
@@ -169,12 +177,78 @@ const InvoiceCreation: React.FC = () => {
     notes: ''
   })
 
-  const [sendOptions, setSendOptions] = useState({
-    sendPdf: true,
-    sendMail: false,
-    confirmationEmail: true,
-    reminderEmail: false
-  })
+  // 多言語対応
+  const translations = {
+    ja: {
+      invoice: '請求書',
+      invoiceNumber: '請求書番号',
+      issueDate: '発行日',
+      dueDate: '支払期限',
+      billTo: '請求先',
+      item: '項目',
+      quantity: '数量',
+      unitPrice: '単価',
+      taxRate: '税率',
+      amount: '金額',
+      subtotal: '小計',
+      tax: '消費税',
+      total: '合計',
+      notes: '備考',
+      companyInfo: '会社情報',
+      phone: '電話',
+      email: 'メール',
+      save: '保存',
+      send: '送信',
+      preview: 'プレビュー'
+    },
+    en: {
+      invoice: 'Invoice',
+      invoiceNumber: 'Invoice Number',
+      issueDate: 'Issue Date',
+      dueDate: 'Due Date',
+      billTo: 'Bill To',
+      item: 'Item',
+      quantity: 'Quantity',
+      unitPrice: 'Unit Price',
+      taxRate: 'Tax Rate',
+      amount: 'Amount',
+      subtotal: 'Subtotal',
+      tax: 'Tax',
+      total: 'Total',
+      notes: 'Notes',
+      companyInfo: 'Company Info',
+      phone: 'Phone',
+      email: 'Email',
+      save: 'Save',
+      send: 'Send',
+      preview: 'Preview'
+    },
+    zh: {
+      invoice: '发票',
+      invoiceNumber: '发票号码',
+      issueDate: '开票日期',
+      dueDate: '付款期限',
+      billTo: '付款方',
+      item: '项目',
+      quantity: '数量',
+      unitPrice: '单价',
+      taxRate: '税率',
+      amount: '金额',
+      subtotal: '小计',
+      tax: '税',
+      total: '总计',
+      notes: '备注',
+      companyInfo: '公司情報',
+      phone: '电话',
+      email: '邮箱',
+      save: '保存',
+      send: '发送',
+      preview: '预览'
+    }
+  } as const;
+
+  type Language = keyof typeof translations;
+  const t = translations[language];
 
   // 通知表示
   const showNotification = (type: 'success' | 'error', message: string) => {
@@ -267,6 +341,11 @@ const InvoiceCreation: React.FC = () => {
     }
     
     setRecentInvoices([newInvoice, ...recentInvoices])
+    
+    // ローカルストレージの下書きをクリア
+    localStorage.removeItem('invoiceDraft');
+    setLastSaved(null);
+    
     setShowSaveModal(false)
     showNotification('success', '請求書を保存しました')
   }
@@ -419,6 +498,193 @@ const InvoiceCreation: React.FC = () => {
     }
   }
 
+  // 自動保存機能
+  const t = translations[language];
+
+  // プレビュー機能の改善（署名対応）
+  const generatePreviewHtml = () => {
+    if (!selectedCustomer) return '';
+    
+    return `
+      <!DOCTYPE html>
+      <html lang="${language}">
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 20px; }
+          .invoice-container { max-width: 800px; margin: 0 auto; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; }
+          .company-info { }
+          .invoice-title { text-align: right; }
+          .invoice-title h1 { font-size: 24px; color: #3b82f6; margin: 0; }
+          .invoice-meta { display: flex; justify-content: space-between; margin-bottom: 30px; }
+          .customer-info { }
+          .invoice-details { text-align: right; }
+          .invoice-details div { margin-bottom: 5px; }
+          .items-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+          .items-table th { background-color: #f3f4f6; padding: 10px; text-align: left; border: 1px solid #d1d5db; }
+          .items-table td { padding: 10px; border: 1px solid #d1d5db; }
+          .totals { width: 300px; margin-left: auto; }
+          .totals div { display: flex; justify-content: space-between; padding: 5px 0; }
+          .total { font-weight: bold; font-size: 18px; border-top: 2px solid #000; margin-top: 10px; }
+          .notes { margin-top: 30px; padding-top: 15px; border-top: 1px solid #d1d5db; }
+          .signature-section { margin-top: 50px; display: flex; justify-content: space-between; }
+          .signature-box { width: 45%; }
+          .signature-line { border-top: 1px solid #000; margin-top: 80px; padding-top: 10px; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="invoice-container">
+          <div class="header">
+            <div class="company-info">
+              <h2>Ainance株式会社</h2>
+              <p>東京都渋谷区1-1-1</p>
+              <p>${t.phone}: 03-1234-5678</p>
+              <p>${t.email}: info@ainance.co.jp</p>
+            </div>
+            <div class="invoice-title">
+              <h1>${t.invoice}</h1>
+            </div>
+          </div>
+          
+          <div class="invoice-meta">
+            <div class="customer-info">
+              <h3>${t.billTo}</h3>
+              <p>${selectedCustomer.company}</p>
+              <p>${selectedCustomer.name}</p>
+              <p>${selectedCustomer.address}</p>
+              <p>${t.phone}: ${selectedCustomer.phone}</p>
+              <p>${t.email}: ${selectedCustomer.email}</p>
+            </div>
+            <div class="invoice-details">
+              <div><strong>${t.invoiceNumber}:</strong> ${invoiceForm.number}</div>
+              <div><strong>${t.issueDate}:</strong> ${invoiceForm.date}</div>
+              <div><strong>${t.dueDate}:</strong> ${invoiceForm.dueDate}</div>
+            </div>
+          </div>
+          
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th>${t.item}</th>
+                <th>${t.quantity}</th>
+                <th>${t.unitPrice}</th>
+                <th>${t.taxRate}</th>
+                <th>${t.amount}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoiceItems.map(item => `
+                <tr>
+                  <td>${item.description}</td>
+                  <td>${item.quantity}</td>
+                  <td>¥${item.unitPrice.toLocaleString()}</td>
+                  <td>${item.taxRate}%</td>
+                  <td>¥${item.amount.toLocaleString()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div class="totals">
+            <div><span>${t.subtotal}:</span> <span>¥${calculateSubtotal().toLocaleString()}</span></div>
+            <div><span>${t.tax}:</span> <span>¥${calculateTax().toLocaleString()}</span></div>
+            <div class="total"><span>${t.total}:</span> <span>¥${calculateTotal().toLocaleString()}</span></div>
+          </div>
+          
+          ${invoiceForm.notes ? `<div class="notes"><h3>${t.notes}</h3><p>${invoiceForm.notes}</p></div>` : ''}
+          
+          <div class="signature-section">
+            <div class="signature-box">
+              <p>請求者署名:</p>
+              ${signature ? `<img src="${signature}" style="max-width: 200px; max-height: 100px;" />` : '<div class="signature-line">署名欄</div>'}
+            </div>
+            <div class="signature-box">
+              <p>承認者署名:</p>
+              <div class="signature-line">署名欄</div>
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  // 署名機能の関数
+  // 署名キャンバスの初期化
+  useEffect(() => {
+    if (showSignatureModal && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'black';
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+      }
+    }
+  }, [showSignatureModal]);
+
+  // 署名の描画処理
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    isDrawing.current = true;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing.current || !canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    isDrawing.current = false;
+  };
+
+  // 署名の保存
+  const saveSignature = () => {
+    if (canvasRef.current) {
+      const dataUrl = canvasRef.current.toDataURL('image/png');
+      setSignature(dataUrl);
+      setShowSignatureModal(false);
+      showNotification('success', '署名を保存しました');
+    }
+  };
+
+  // 署名のクリア
+  const clearSignature = () => {
+    if (canvasRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -446,31 +712,41 @@ const InvoiceCreation: React.FC = () => {
               <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-gray-900" />
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">請求書作成</h1>
+              <h1 className="text-2xl font-bold text-gray-900">{t.invoice}</h1>
               <p className="text-gray-600">プロフェッショナルな請求書を簡単に作成・送信</p>
             </div>
           </div>
-          <div className="flex space-x-3">
+          <div className="flex items-center space-x-3">
+            {/* 言語選択 */}
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as 'ja' | 'en' | 'zh')}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="ja">日本語</option>
+              <option value="en">English</option>
+              <option value="zh">中文</option>
+            </select>
             <button 
               onClick={handlePreview}
               className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
             >
               <Eye className="w-4 h-4 mr-2" />
-              プレビュー
+              {t.preview}
             </button>
             <button 
               onClick={handleSave}
               className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
             >
               <Save className="w-4 h-4 mr-2" />
-              保存
+              {t.save}
             </button>
             <button 
               onClick={handleSend}
               className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
             >
               <Send className="w-4 h-4 mr-2" />
-              送信
+              {t.send}
             </button>
           </div>
         </div>
@@ -517,6 +793,35 @@ const InvoiceCreation: React.FC = () => {
         {activeTab === 'create' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
+              {/* 自動保存ステータス */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    {isAutoSaving ? (
+                      <>
+                        <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse mr-2"></div>
+                        <span className="text-sm text-blue-700">自動保存中...</span>
+                      </>
+                    ) : lastSaved ? (
+                      <>
+                        <Check className="w-4 h-4 text-green-500 mr-2" />
+                        <span className="text-sm text-green-700">
+                          最終保存: {lastSaved.toLocaleTimeString()}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-sm text-blue-700">自動保存が有効です</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={autoSaveInvoice}
+                    className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors"
+                  >
+                    今すぐ保存
+                  </button>
+                </div>
+              </div>
+
               {/* 基本情報 */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <h2 className="text-lg font-semibold mb-4">基本情報</h2>
@@ -757,6 +1062,38 @@ const InvoiceCreation: React.FC = () => {
                     <span className="text-sm">支払期限リマインダー</span>
                   </label>
                 </div>
+              </div>
+
+              {/* 署名 */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h2 className="text-lg font-semibold mb-4">署名</h2>
+                {signature ? (
+                  <div className="text-center">
+                    <img src={signature} alt="署名" className="max-w-full h-24 mx-auto mb-3" />
+                    <button
+                      onClick={() => {
+                        setSignature(null);
+                        showNotification('success', '署名をクリアしました');
+                      }}
+                      className="text-sm text-red-600 hover:text-red-800"
+                    >
+                      署名をクリア
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 mb-3">
+                      <FileText className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-600">署名がありません</p>
+                    </div>
+                    <button
+                      onClick={() => setShowSignatureModal(true)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      署名を追加
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* クイックアクション */}
@@ -1176,7 +1513,7 @@ const InvoiceCreation: React.FC = () => {
                 <p className="text-sm text-gray-600">以下の宛先に請求書を送信します：</p>
                 <p className="font-medium mt-2">{selectedCustomer?.company}</p>
                 <p className="text-sm text-gray-600">{selectedCustomer?.email}</p>
-                <p className="font-medium mt-2">金額: ¥{calculateTotal().toLocaleString()}</p>
+                <p className="font-medium">金額: ¥{calculateTotal().toLocaleString()}</p>
               </div>
               <div className="mb-4">
                 <h4 className="font-medium mb-2">送信オプション</h4>
@@ -1288,6 +1625,58 @@ const InvoiceCreation: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* 署名モーダル */}
+        {showSignatureModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">署名</h3>
+                <button
+                  onClick={() => setShowSignatureModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="mb-4">
+                <canvas
+                  ref={canvasRef}
+                  width={400}
+                  height={200}
+                  className="border border-gray-300 rounded-lg w-full cursor-crosshair"
+                  onMouseDown={startDrawing}
+                  onMouseMove={draw}
+                  onMouseUp={stopDrawing}
+                  onMouseLeave={stopDrawing}
+                />
+              </div>
+              <div className="flex justify-between">
+                <button
+                  onClick={clearSignature}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                >
+                  クリア
+                </button>
+                <div className="space-x-2">
+                  <button
+                    onClick={() => setShowSignatureModal(false)}
+                    className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={saveSignature}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    保存
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   )
