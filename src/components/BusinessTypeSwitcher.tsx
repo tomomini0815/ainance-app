@@ -95,7 +95,7 @@ const BusinessTypeSwitcher: React.FC<BusinessTypeSwitcherProps> = ({
   if (loading) {
     return (
       <div className="flex items-center space-x-2 bg-gray-100 px-3 py-2 rounded-lg">
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+        <div className="rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
         <span className="text-sm text-gray-700">読み込み中...</span>
       </div>
     )

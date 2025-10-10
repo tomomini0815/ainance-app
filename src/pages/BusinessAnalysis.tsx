@@ -1,12 +1,17 @@
-
-import React, { useState } from 'react'
+import React, { useState, useEffect, memo } from 'react'
 import { Link } from 'react-router-dom'
-import {ArrowLeft, TrendingUp, TrendingDown, AlertCircle, CheckCircle, BarChart3, PieChart, Calendar, Download} from 'lucide-react'
+import {ArrowLeft, TrendingUp, TrendingDown, AlertCircle, CheckCircle, BarChart3, PieChart, Calendar, Download, X, RefreshCw} from 'lucide-react'
+import { LineChart, Line, BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import Header from '../components/Header'
 
 const BusinessAnalysis: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('3months')
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [showCustomReport, setShowCustomReport] = useState(false)
+  const [reportTitle, setReportTitle] = useState('')
+  const [selectedMetrics, setSelectedMetrics] = useState<string[]>([])
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+  const [isUpdating, setIsUpdating] = useState(false)
 
   const periods = [
     { value: '1month', label: '1ヶ月' },
@@ -22,6 +27,38 @@ const BusinessAnalysis: React.FC = () => {
     { value: 'cashflow', label: 'キャッシュフロー' },
     { value: 'profitability', label: '収益性' }
   ]
+
+  // 売上データ
+  const revenueData = [
+    { month: '1月', revenue: 2400000, target: 2200000 },
+    { month: '2月', revenue: 1398000, target: 2000000 },
+    { month: '3月', revenue: 1800000, target: 1800000 },
+    { month: '4月', revenue: 2780000, target: 2500000 },
+    { month: '5月', revenue: 1890000, target: 2000000 },
+    { month: '6月', revenue: 2390000, target: 2200000 }
+  ]
+
+  // 支出データ
+  const expenseData = [
+    { category: '人件費', amount: 1200000 },
+    { category: '広告費', amount: 300000 },
+    { category: '消耗品費', amount: 150000 },
+    { category: '水道光熱費', amount: 80000 },
+    { category: '通信費', amount: 50000 },
+    { category: 'その他', amount: 120000 }
+  ]
+
+  // キャッシュフローデータ
+  const cashFlowData = [
+    { month: '1月', income: 2400000, expense: 1800000 },
+    { month: '2月', income: 1398000, expense: 1600000 },
+    { month: '3月', income: 1800000, expense: 1500000 },
+    { month: '4月', income: 2780000, expense: 1900000 },
+    { month: '5月', income: 1890000, expense: 1700000 },
+    { month: '6月', income: 2390000, expense: 1850000 }
+  ]
+
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D']
 
   const kpis = [
     {
@@ -140,6 +177,65 @@ const BusinessAnalysis: React.FC = () => {
     }
   ]
 
+  // カスタムレポートのメトリクスオプション
+  const metricOptions = [
+    { id: 'revenue', label: '売上' },
+    { id: 'expenses', label: '支出' },
+    { id: 'profit', label: '利益' },
+    { id: 'cashflow', label: 'キャッシュフロー' },
+    { id: 'customers', label: '顧客数' },
+    { id: 'roi', label: 'ROI' }
+  ]
+
+  // カスタムレポートの生成
+  const generateCustomReport = () => {
+    if (!reportTitle || selectedMetrics.length === 0) {
+      alert('レポートタイトルと少なくとも1つの指標を選択してください')
+      return
+    }
+    
+    // 実際のレポート生成処理をここに実装
+    console.log('Generating custom report:', { reportTitle, selectedMetrics })
+    setShowCustomReport(false)
+    setReportTitle('')
+    setSelectedMetrics([])
+    alert(`${reportTitle} を生成しました`)
+  }
+
+  // メトリクスの選択/非選択
+  const toggleMetric = (metricId: string) => {
+    if (selectedMetrics.includes(metricId)) {
+      setSelectedMetrics(selectedMetrics.filter(id => id !== metricId))
+    } else {
+      setSelectedMetrics([...selectedMetrics, metricId])
+    }
+  }
+
+  // リアルタイムデータ更新
+  const updateData = () => {
+    setIsUpdating(true)
+    
+    // シミュレーション: 2秒後にデータを更新
+    setTimeout(() => {
+      // 実際のデータ更新処理をここに実装
+      setLastUpdated(new Date())
+      setIsUpdating(false)
+      
+      // データを再計算
+      // ここでは例として、売上データを更新します
+      console.log('Data updated')
+    }, 2000)
+  }
+
+  // 5分ごとに自動更新（シミュレーション）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      updateData()
+    }, 300000) // 5分 = 300000ミリ秒
+    
+    return () => clearInterval(interval)
+  }, [])
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -156,42 +252,80 @@ const BusinessAnalysis: React.FC = () => {
               <p className="text-gray-600">AIが事業データを分析してレポートを作成します</p>
             </div>
           </div>
-          <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-            <Download className="w-4 h-4 mr-2" />
-            レポート出力
-          </button>
+          <div className="flex space-x-2">
+            <button 
+              onClick={() => setShowCustomReport(true)}
+              className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+            >
+              <BarChart3 className="w-4 h-4 mr-2" />
+              カスタムレポート
+            </button>
+            <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+              <Download className="w-4 h-4 mr-2" />
+              レポート出力
+            </button>
+          </div>
         </div>
 
         {/* フィルター */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="flex flex-wrap gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">分析期間</label>
-              <select
-                value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {periods.map((period) => (
-                  <option key={period.value} value={period.value}>
-                    {period.label}
-                  </option>
-                ))}
-              </select>
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex flex-wrap gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">分析期間</label>
+                <select
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {periods.map((period) => (
+                    <option key={period.value} value={period.value}>
+                      {period.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">分析カテゴリ</label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {categories.map((category) => (
+                    <option key={category.value} value={category.value}>
+                      {category.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">分析カテゴリ</label>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            
+            <div className="flex items-center">
+              <div className="text-sm text-gray-600 mr-3">
+                最終更新: {lastUpdated.toLocaleTimeString()}
+              </div>
+              <button
+                onClick={updateData}
+                disabled={isUpdating}
+                className={`flex items-center px-3 py-2 rounded-md ${
+                  isUpdating 
+                    ? 'bg-gray-300 text-gray-500' 
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
               >
-                {categories.map((category) => (
-                  <option key={category.value} value={category.value}>
-                    {category.label}
-                  </option>
-                ))}
-              </select>
+                {isUpdating ? (
+                  <>
+                    <div className="w-4 h-4 border-t-2 border-r-2 border-white rounded-full mr-2"></div>
+                    更新中...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    更新
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -220,6 +354,58 @@ const BusinessAnalysis: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* グラフセクション */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {/* 売上推移グラフ */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold mb-4">売上推移</h2>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={revenueData}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => [`¥${Number(value).toLocaleString()}`, '']} />
+                  <Legend />
+                  <Line type="monotone" dataKey="revenue" stroke="#8884d8" activeDot={{ r: 8 }} name="実績" />
+                  <Line type="monotone" dataKey="target" stroke="#82ca9d" name="目標" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* 支出内訳円グラフ */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold mb-4">支出内訳</h2>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsPieChart>
+                  <Pie
+                    data={expenseData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={true}
+                    label={({ name, percent }) => `${name}: ${(percent as number * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="amount"
+                    nameKey="category"
+                  >
+                    {expenseData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => [`¥${Number(value).toLocaleString()}`, '']} />
+                  <Legend />
+                </RechartsPieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -328,8 +514,69 @@ const BusinessAnalysis: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* カスタムレポートモーダル */}
+      {showCustomReport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">カスタムレポート作成</h3>
+              <button
+                onClick={() => setShowCustomReport(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">レポートタイトル</label>
+              <input
+                type="text"
+                value={reportTitle}
+                onChange={(e) => setReportTitle(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="例: 2024年上半期業績分析"
+              />
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">指標選択</label>
+              <div className="space-y-2">
+                {metricOptions.map((metric) => (
+                  <label key={metric.id} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedMetrics.includes(metric.id)}
+                      onChange={() => toggleMetric(metric.id)}
+                      className="mr-2"
+                    />
+                    <span className="text-sm text-gray-700">{metric.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-2">
+              <button
+                onClick={() => setShowCustomReport(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={generateCustomReport}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700"
+              >
+                レポート生成
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
 
-export default BusinessAnalysis
+export default memo(BusinessAnalysis)

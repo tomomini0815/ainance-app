@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, memo } from 'react'
 import { Link } from 'react-router-dom'
 import {ArrowLeft, Upload, Camera, FileImage, Check, X, Edit3, Save, AlertCircle, Loader} from 'lucide-react'
 import Header from '../components/Header'
@@ -425,7 +425,7 @@ const ReceiptProcessing: React.FC = () => {
                         <div>
                           {receipt.isProcessing ? (
                             <div className="flex items-center">
-                              <Loader className="w-4 h-4 mr-2 animate-spin text-blue-500" />
+                              <Loader className="w-4 h-4 mr-2 text-blue-500" />
                               <span>解析中...</span>
                             </div>
                           ) : (
@@ -453,7 +453,7 @@ const ReceiptProcessing: React.FC = () => {
                       ) : (
                         <div>
                           {receipt.isProcessing ? (
-                            <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                            <div className="h-4 w-24 bg-gray-200 rounded"></div>
                           ) : (
                             <>
                               <div>¥{receipt.amount?.toLocaleString()}</div>
@@ -482,7 +482,7 @@ const ReceiptProcessing: React.FC = () => {
                         </select>
                       ) : (
                         receipt.isProcessing ? (
-                          <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-4 w-16 bg-gray-200 rounded"></div>
                         ) : (
                           receipt.category
                         )
@@ -498,7 +498,7 @@ const ReceiptProcessing: React.FC = () => {
                         />
                       ) : (
                         receipt.isProcessing ? (
-                          <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-4 w-32 bg-gray-200 rounded"></div>
                         ) : (
                           receipt.description
                         )
@@ -508,7 +508,7 @@ const ReceiptProcessing: React.FC = () => {
                       {receipt.isProcessing ? (
                         <div className="flex items-center">
                           <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
-                            <div className="h-2 rounded-full bg-blue-500 animate-pulse" style={{ width: '50%' }}></div>
+                            <div className="h-2 rounded-full bg-blue-500" style={{ width: '50%' }}></div>
                           </div>
                           <span className="text-xs text-gray-600">解析中...</span>
                         </div>
@@ -555,7 +555,7 @@ const ReceiptProcessing: React.FC = () => {
                         ) : (
                           <>
                             {receipt.isProcessing ? (
-                              <div className="w-4 h-4 bg-gray-200 rounded animate-pulse"></div>
+                              <div className="w-4 h-4 bg-gray-200 rounded"></div>
                             ) : (
                               <>
                                 <button
@@ -597,4 +597,4 @@ const ReceiptProcessing: React.FC = () => {
   )
 }
 
-export default ReceiptProcessing
+export default memo(ReceiptProcessing)

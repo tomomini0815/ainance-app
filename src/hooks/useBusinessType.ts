@@ -1,6 +1,4 @@
-
 import { useState, useEffect, useCallback } from 'react'
-import { lumi } from '../lib/lumi'
 import toast from 'react-hot-toast'
 
 interface BusinessType {
@@ -18,6 +16,38 @@ interface BusinessType {
   updated_at: string
 }
 
+// ダミーデータ
+const dummyBusinessTypes: BusinessType[] = [
+  {
+    _id: '1',
+    user_id: 'user_1234567890',
+    business_type: 'individual',
+    company_name: '',
+    tax_number: '',
+    address: '東京都渋谷区1-1-1',
+    phone: '03-1234-5678',
+    email: 'user@example.com',
+    representative_name: '',
+    is_active: true,
+    created_at: '2023-01-01T00:00:00Z',
+    updated_at: '2023-01-01T00:00:00Z'
+  },
+  {
+    _id: '2',
+    user_id: 'user_1234567890',
+    business_type: 'corporation',
+    company_name: '株式会社Ainance',
+    tax_number: 'T1234567890123',
+    address: '東京都港区2-2-2',
+    phone: '03-9876-5432',
+    email: 'corp@example.com',
+    representative_name: '山田太郎',
+    is_active: false,
+    created_at: '2023-06-01T00:00:00Z',
+    updated_at: '2023-06-01T00:00:00Z'
+  }
+]
+
 export const useBusinessType = (userId?: string) => {
   const [currentBusinessType, setCurrentBusinessType] = useState<BusinessType | null>(null)
   const [businessTypes, setBusinessTypes] = useState<BusinessType[]>([])
@@ -31,16 +61,9 @@ export const useBusinessType = (userId?: string) => {
     }
 
     try {
-      const { list } = await lumi.entities.business_type.list({
-        filter: { 
-          user_id: userId,
-          is_active: true 
-        }
-      })
-      
-      if (list && list.length > 0) {
-        setCurrentBusinessType(list[0])
-      }
+      // ダミーデータからアクティブな業態形態を取得
+      const activeBusinessType = dummyBusinessTypes.find(bt => bt.user_id === userId && bt.is_active) || null
+      setCurrentBusinessType(activeBusinessType)
     } catch (error) {
       console.error('業態形態の取得に失敗しました:', error)
       toast.error('業態形態の取得に失敗しました')
@@ -54,12 +77,9 @@ export const useBusinessType = (userId?: string) => {
     if (!userId) return
 
     try {
-      const { list } = await lumi.entities.business_type.list({
-        filter: { user_id: userId },
-        sort: { created_at: -1 }
-      })
-      
-      setBusinessTypes(list || [])
+      // ダミーデータからユーザーの業態形態を取得
+      const userBusinessTypes = dummyBusinessTypes.filter(bt => bt.user_id === userId)
+      setBusinessTypes(userBusinessTypes)
     } catch (error) {
       console.error('業態形態リストの取得に失敗しました:', error)
     }
@@ -73,22 +93,15 @@ export const useBusinessType = (userId?: string) => {
     }
 
     try {
-      // 既存のアクティブな業態形態を非アクティブにする
-      if (currentBusinessType) {
-        await lumi.entities.business_type.update(currentBusinessType._id, {
-          is_active: false,
-          updated_at: new Date().toISOString()
-        })
-      }
-
-      // 新しい業態形態を作成
-      const newBusinessType = await lumi.entities.business_type.create({
-        ...data,
+      // 新しい業態形態を作成（ダミーデータ）
+      const newBusinessType: BusinessType = {
+        _id: (dummyBusinessTypes.length + 1).toString(),
         user_id: userId,
+        ...data,
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      })
+      }
 
       setCurrentBusinessType(newBusinessType)
       await fetchAllBusinessTypes()
@@ -104,25 +117,15 @@ export const useBusinessType = (userId?: string) => {
   // 業態形態を切り替え
   const switchBusinessType = async (businessTypeId: string) => {
     try {
-      // 現在のアクティブ業態形態を非アクティブにする
-      if (currentBusinessType) {
-        await lumi.entities.business_type.update(currentBusinessType._id, {
-          is_active: false,
-          updated_at: new Date().toISOString()
-        })
+      // 選択した業態形態をアクティブにする（ダミーデータ）
+      const selectedBusinessType = dummyBusinessTypes.find(bt => bt._id === businessTypeId)
+      if (selectedBusinessType) {
+        setCurrentBusinessType(selectedBusinessType)
+        toast.success('業態形態を切り替えました')
+        
+        // ページをリロードして新しい業態形態を反映
+        window.location.reload()
       }
-
-      // 選択した業態形態をアクティブにする
-      const updatedBusinessType = await lumi.entities.business_type.update(businessTypeId, {
-        is_active: true,
-        updated_at: new Date().toISOString()
-      })
-
-      setCurrentBusinessType(updatedBusinessType)
-      toast.success('業態形態を切り替えました')
-      
-      // ページをリロードして新しい業態形態を反映
-      window.location.reload()
     } catch (error) {
       console.error('業態形態の切り替えに失敗しました:', error)
       toast.error('業態形態の切り替えに失敗しました')
@@ -132,18 +135,20 @@ export const useBusinessType = (userId?: string) => {
   // 業態形態を更新
   const updateBusinessType = async (businessTypeId: string, updates: Partial<BusinessType>) => {
     try {
-      const updatedBusinessType = await lumi.entities.business_type.update(businessTypeId, {
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-
-      if (currentBusinessType?._id === businessTypeId) {
-        setCurrentBusinessType(updatedBusinessType)
+      // 業態形態を更新（ダミーデータ）
+      const updatedBusinessType = dummyBusinessTypes.find(bt => bt._id === businessTypeId)
+      if (updatedBusinessType) {
+        Object.assign(updatedBusinessType, updates, { updated_at: new Date().toISOString() })
+        
+        if (currentBusinessType?._id === businessTypeId) {
+          setCurrentBusinessType(updatedBusinessType)
+        }
+        
+        await fetchAllBusinessTypes()
+        toast.success('業態形態を更新しました')
+        return updatedBusinessType
       }
-      
-      await fetchAllBusinessTypes()
-      toast.success('業態形態を更新しました')
-      return updatedBusinessType
+      return null
     } catch (error) {
       console.error('業態形態の更新に失敗しました:', error)
       toast.error('業態形態の更新に失敗しました')
@@ -154,14 +159,18 @@ export const useBusinessType = (userId?: string) => {
   // 業態形態を削除
   const deleteBusinessType = async (businessTypeId: string) => {
     try {
-      await lumi.entities.business_type.delete(businessTypeId)
-      
-      if (currentBusinessType?._id === businessTypeId) {
-        setCurrentBusinessType(null)
+      // 業態形態を削除（ダミーデータ）
+      const businessTypeIndex = dummyBusinessTypes.findIndex(bt => bt._id === businessTypeId)
+      if (businessTypeIndex !== -1) {
+        dummyBusinessTypes.splice(businessTypeIndex, 1)
+        
+        if (currentBusinessType?._id === businessTypeId) {
+          setCurrentBusinessType(null)
+        }
+        
+        await fetchAllBusinessTypes()
+        toast.success('業態形態を削除しました')
       }
-      
-      await fetchAllBusinessTypes()
-      toast.success('業態形態を削除しました')
     } catch (error) {
       console.error('業態形態の削除に失敗しました:', error)
       toast.error('業態形態の削除に失敗しました')

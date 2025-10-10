@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect, memo } from 'react'
 import { Link } from 'react-router-dom'
 import {ArrowLeft, Plus, Save, Send, Eye, Download, Search, Calendar, Calculator, User, Building, FileText, Mail, Phone, X, Check, Copy, Trash2} from 'lucide-react'
 import Header from '../components/Header'
@@ -56,6 +56,18 @@ const InvoiceCreation: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [notification, setNotification] = useState<{type: 'success' | 'error', message: string} | null>(null)
   
+  // 自動保存機能の状態
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  
+  // 送信オプションの状態
+  const [sendOptions, setSendOptions] = useState({
+    sendPdf: true,
+    sendMail: false,
+    confirmationEmail: true,
+    reminderEmail: false
+  });
+
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([
     {
       id: '1',
@@ -234,7 +246,7 @@ const InvoiceCreation: React.FC = () => {
       unitPrice: '单价',
       taxRate: '税率',
       amount: '金额',
-      subtotal: '小计',
+      subtotal: '小計',
       tax: '税',
       total: '总计',
       notes: '备注',
@@ -499,7 +511,56 @@ const InvoiceCreation: React.FC = () => {
   }
 
   // 自動保存機能
-  const t = translations[language];
+  const autoSaveInvoice = useCallback(() => {
+    if (!selectedCustomer) return;
+    
+    setIsAutoSaving(true);
+    
+    // ローカルストレージに下書きを保存
+    const draft = {
+      invoiceForm,
+      selectedCustomer,
+      invoiceItems,
+      timestamp: new Date()
+    };
+    
+    localStorage.setItem('invoiceDraft', JSON.stringify(draft));
+    
+    setTimeout(() => {
+      setIsAutoSaving(false);
+      setLastSaved(new Date());
+    }, 500);
+  }, [invoiceForm, selectedCustomer, invoiceItems]);
+
+  // 自動保存の副作用
+  useEffect(() => {
+    // 30秒ごとに自動保存
+    const interval = setInterval(() => {
+      if (selectedCustomer) {
+        autoSaveInvoice();
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, [selectedCustomer, autoSaveInvoice]);
+
+  // ページ読み込み時に下書きを復元
+  useEffect(() => {
+    const savedDraft = localStorage.getItem('invoiceDraft');
+    if (savedDraft) {
+      try {
+        const draft = JSON.parse(savedDraft);
+        setInvoiceForm(draft.invoiceForm);
+        setSelectedCustomer(draft.selectedCustomer);
+        setInvoiceItems(draft.invoiceItems);
+        setLastSaved(new Date(draft.timestamp));
+      } catch (error) {
+        console.error('下書きの復元に失敗しました:', error);
+      }
+    }
+  }, []);
+
+  const t2 = translations[language];
 
   // プレビュー機能の改善（署名対応）
   const generatePreviewHtml = () => {
@@ -799,7 +860,7 @@ const InvoiceCreation: React.FC = () => {
                   <div className="flex items-center">
                     {isAutoSaving ? (
                       <>
-                        <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse mr-2"></div>
+                        <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
                         <span className="text-sm text-blue-700">自動保存中...</span>
                       </>
                     ) : lastSaved ? (
@@ -1682,4 +1743,4 @@ const InvoiceCreation: React.FC = () => {
   )
 }
 
-export default InvoiceCreation
+export default memo(InvoiceCreation)

@@ -1,83 +1,183 @@
-
-import React from 'react'
+import React, { useState, memo } from 'react'
 import { Link } from 'react-router-dom'
-import {Receipt, FileText, BarChart3, MessageSquare, Users, Settings} from 'lucide-react'
+import { 
+  Camera, 
+  FileText, 
+  BarChart3, 
+  MessageSquare, 
+  Upload, 
+  CreditCard, 
+  Building, 
+  Settings,
+  Plus,
+  TrendingUp,
+  Calendar,
+  Bell
+} from 'lucide-react'
+
+interface QuickAction {
+  id: string
+  title: string
+  description: string
+  icon: React.ReactNode
+  path: string
+  color: string
+  frequency: string
+}
 
 const QuickActions: React.FC = () => {
-  const actions = [
+  const [showAll, setShowAll] = useState(false)
+
+  const quickActions: QuickAction[] = [
     {
-      icon: Receipt,
-      title: 'レシート処理',
-      subtitle: '画像から自動仕訳',
-      bgColor: 'bg-purple-100',
-      iconColor: 'text-purple-600',
-      link: '/receipt'
+      id: '1',
+      title: 'レシート撮影',
+      description: 'カメラでレシートをスキャン',
+      icon: <Camera className="w-6 h-6" />,
+      path: '/receipt-processing',
+      color: 'bg-blue-500',
+      frequency: '今日 12回使用'
     },
     {
-      icon: FileText,
+      id: '2',
       title: '請求書作成',
-      subtitle: 'テンプレートで簡単作成',
-      bgColor: 'bg-green-100',
-      iconColor: 'text-green-600',
-      link: '/invoice'
+      description: '新しい請求書を作成',
+      icon: <FileText className="w-6 h-6" />,
+      path: '/invoice-creation',
+      color: 'bg-green-500',
+      frequency: '今日 3回使用'
     },
     {
-      icon: BarChart3,
+      id: '3',
       title: '経営分析',
-      subtitle: 'AIが分析レポート作成',
-      bgColor: 'bg-blue-100',
-      iconColor: 'text-blue-600',
-      link: '/analysis'
+      description: 'ビジネスパフォーマンスを分析',
+      icon: <BarChart3 className="w-6 h-6" />,
+      path: '/business-analysis',
+      color: 'bg-purple-500',
+      frequency: '今日 5回使用'
     },
     {
-      icon: MessageSquare,
-      title: 'Chat-to-Book',
-      subtitle: 'チャットで会計処理',
-      bgColor: 'bg-yellow-100',
-      iconColor: 'text-yellow-600',
-      link: '/chat'
+      id: '4',
+      title: 'CHAT-TO-BOOK',
+      description: 'チャットで帳簿入力',
+      icon: <MessageSquare className="w-6 h-6" />,
+      path: '/chat-to-book',
+      color: 'bg-orange-500',
+      frequency: '今日 8回使用'
     },
     {
-      icon: Users,
+      id: '5',
+      title: 'ファイルアップロード',
+      description: 'PDF/画像をアップロード',
+      icon: <Upload className="w-6 h-6" />,
+      path: '/receipt-processing',
+      color: 'bg-indigo-500',
+      frequency: '今日 7回使用'
+    },
+    {
+      id: '6',
+      title: 'カード連携',
+      description: 'クレジットカードと連携',
+      icon: <CreditCard className="w-6 h-6" />,
+      path: '/integration-settings',
+      color: 'bg-red-500',
+      frequency: '設定済み'
+    },
+    {
+      id: '7',
       title: '事業変換',
-      subtitle: '個人⇔法人の切り替え',
-      bgColor: 'bg-teal-100',
-      iconColor: 'text-teal-600',
-      link: '/conversion'
+      description: '個人事業から法人へ',
+      icon: <Building className="w-6 h-6" />,
+      path: '/business-conversion',
+      color: 'bg-yellow-500',
+      frequency: '未開始'
     },
     {
-      icon: Settings,
-      title: '連携設定',
-      subtitle: '銀行・クレジット連携',
-      bgColor: 'bg-gray-100',
-      iconColor: 'text-gray-600',
-      link: '/settings'
+      id: '8',
+      title: '設定',
+      description: 'アプリケーションの設定',
+      icon: <Settings className="w-6 h-6" />,
+      path: '/integration-settings',
+      color: 'bg-gray-500',
+      frequency: '最終更新 2日前'
     }
   ]
 
+  const displayedActions = showAll ? quickActions : quickActions.slice(0, 6)
+
   return (
-    <section className="mb-8">
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">クイックアクション</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {actions.map((action, index) => {
-          const IconComponent = action.icon
-          return (
-            <Link
-              key={index}
-              to={action.link}
-              className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer border border-gray-100 block"
-            >
-              <div className={`w-12 h-12 ${action.bgColor} rounded-lg flex items-center justify-center mb-3 mx-auto`}>
-                <IconComponent className={`w-6 h-6 ${action.iconColor}`} />
-              </div>
-              <h3 className="font-medium text-gray-900 text-sm text-center mb-1">{action.title}</h3>
-              <p className="text-xs text-gray-500 text-center">{action.subtitle}</p>
-            </Link>
-          )
-        })}
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-lg font-semibold text-gray-900">クイックアクション</h2>
+        <button 
+          onClick={() => setShowAll(!showAll)}
+          className="text-sm text-blue-600 hover:text-blue-800"
+        >
+          {showAll ? '一部を表示' : 'すべて表示'}
+        </button>
       </div>
-    </section>
+      
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        {displayedActions.map((action) => (
+          <Link 
+            key={action.id}
+            to={action.path}
+            className="group flex flex-col items-center p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-md transition-all duration-200"
+          >
+            <div className={`${action.color} p-3 rounded-lg text-white mb-3 group-hover:scale-110 transition-transform`}>
+              {action.icon}
+            </div>
+            <h3 className="font-medium text-gray-900 text-center mb-1">{action.title}</h3>
+            <p className="text-xs text-gray-600 text-center mb-2">{action.description}</p>
+            <p className="text-xs text-gray-500">{action.frequency}</p>
+          </Link>
+        ))}
+        
+        {/* 追加アクションボタン */}
+        <button className="flex flex-col items-center justify-center p-4 rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-300 transition-colors">
+          <div className="bg-gray-100 p-3 rounded-lg text-gray-600 mb-3">
+            <Plus className="w-6 h-6" />
+          </div>
+          <h3 className="font-medium text-gray-900 text-center mb-1">アクションを追加</h3>
+          <p className="text-xs text-gray-600 text-center">カスタムアクション</p>
+        </button>
+      </div>
+      
+      {/* 統計情報 */}
+      <div className="mt-6 pt-6 border-t border-gray-200">
+        <h3 className="text-sm font-medium text-gray-900 mb-3">今日の利用状況</h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="flex items-center">
+            <div className="p-2 bg-blue-100 rounded-lg mr-3">
+              <TrendingUp className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">25</p>
+              <p className="text-xs text-gray-600">合計アクション</p>
+            </div>
+          </div>
+          <div className="flex items-center">
+            <div className="p-2 bg-green-100 rounded-lg mr-3">
+              <Calendar className="w-4 h-4 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">8</p>
+              <p className="text-xs text-gray-600">タスク完了</p>
+            </div>
+          </div>
+          <div className="flex items-center">
+            <div className="p-2 bg-purple-100 rounded-lg mr-3">
+              <Bell className="w-4 h-4 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-900">3</p>
+              <p className="text-xs text-gray-600">未読通知</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
-export default QuickActions
+export default memo(QuickActions)

@@ -1,7 +1,6 @@
-
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, memo } from 'react'
 import { Link } from 'react-router-dom'
-import {ArrowLeft, Send, Mic, MicOff, FileText, Calculator, TrendingUp, Plus, Check, X} from 'lucide-react'
+import {ArrowLeft, Send, Mic, MicOff, FileText, Calculator, TrendingUp, Plus, Check, X, Trash2, Download, Upload} from 'lucide-react'
 import Header from '../components/Header'
 
 interface ChatMessage {
@@ -24,25 +23,33 @@ interface Transaction {
 }
 
 const ChatToBook: React.FC = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      type: 'ai',
-      content: 'こんにちは！会計処理のお手伝いをします。取引内容を自然な言葉で教えてください。例：「今日コンビニで文房具を1200円で買いました」',
-      timestamp: new Date(),
-      suggestions: [
-        '売上を記録したい',
-        '経費を入力したい',
-        '残高を確認したい',
-        '月次レポートを見たい'
-      ]
-    }
-  ])
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const savedMessages = localStorage.getItem('chatToBookMessages');
+    return savedMessages ? JSON.parse(savedMessages, (key, value) => {
+      if (key === 'timestamp') return new Date(value);
+      return value;
+    }) : [
+      {
+        id: '1',
+        type: 'ai',
+        content: 'こんにちは！会計処理のお手伝いをします。取引内容を自然な言葉で教えてください。例：「今日コンビニで文房具を1200円で買いました」',
+        timestamp: new Date(),
+        suggestions: [
+          '売上を記録したい',
+          '経費を入力したい',
+          '残高を確認したい',
+          '月次レポートを見たい'
+        ]
+      }
+    ];
+  });
   
   const [inputText, setInputText] = useState('')
   const [isRecording, setIsRecording] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [pendingTransactions, setPendingTransactions] = useState<Transaction[]>([])
+  const [isListening, setIsListening] = useState(false);
+  const [recognition, setRecognition] = useState<any>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -84,9 +91,42 @@ const ChatToBook: React.FC = () => {
     { icon: Plus, label: '新規取引', action: () => handleQuickInput('新しい取引を追加したい') }
   ]
 
+  // チャット履歴の保存
+  useEffect(() => {
+    localStorage.setItem('chatToBookMessages', JSON.stringify(messages));
+  }, [messages]);
+
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // 音声認識の初期化
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+      const recognitionInstance = new SpeechRecognition();
+      recognitionInstance.continuous = false;
+      recognitionInstance.interimResults = false;
+      recognitionInstance.lang = 'ja-JP';
+
+      recognitionInstance.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInputText(transcript);
+        setIsListening(false);
+      };
+
+      recognitionInstance.onerror = (event: any) => {
+        console.error('音声認識エラー:', event.error);
+        setIsListening(false);
+      };
+
+      recognitionInstance.onend = () => {
+        setIsListening(false);
+      };
+
+      setRecognition(recognitionInstance);
+    }
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -153,6 +193,24 @@ const ChatToBook: React.FC = () => {
     // レポート
     else if (input.includes('レポート') || input.includes('月次') || input.includes('分析')) {
       response.response = '月次レポートを作成しました。今月の利益は ¥2,450,000 で、前月比 +12.5% の成長です。詳細は経営分析ページでご確認ください。'
+    }
+    // チャット履歴クリア
+    else if (input.includes('クリア') || input.includes('リセット') || input.includes('削除')) {
+      response.response = 'チャット履歴をクリアしました。新しい会話を始めましょう。';
+      setMessages([
+        {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: 'チャットをリセットしました。新しい会話をお始めください。',
+          timestamp: new Date(),
+          suggestions: [
+            '売上を記録したい',
+            '経費を入力したい',
+            '残高を確認したい',
+            '月次レポートを見たい'
+          ]
+        }
+      ]);
     }
     else {
       response.response = '申し訳ございませんが、理解できませんでした。以下のような形で教えてください：\n• 「コンビニで1200円使いました」\n• 「50万円の売上がありました」\n• 「現在の残高を教えて」'
@@ -231,8 +289,18 @@ const ChatToBook: React.FC = () => {
   }
 
   const toggleRecording = () => {
-    setIsRecording(!isRecording)
-    // 実際の音声認識実装はここに
+    if (!recognition) {
+      alert('このブラウザでは音声認識がサポートされていません。');
+      return;
+    }
+
+    if (isListening) {
+      recognition.stop();
+      setIsListening(false);
+    } else {
+      recognition.start();
+      setIsListening(true);
+    }
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -240,6 +308,37 @@ const ChatToBook: React.FC = () => {
       e.preventDefault()
       handleSendMessage()
     }
+  }
+
+  const clearChatHistory = () => {
+    if (window.confirm('チャット履歴をクリアしてもよろしいですか？')) {
+      setMessages([
+        {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: 'チャットをリセットしました。新しい会話をお始めください。',
+          timestamp: new Date(),
+          suggestions: [
+            '売上を記録したい',
+            '経費を入力したい',
+            '残高を確認したい',
+            '月次レポートを見たい'
+          ]
+        }
+      ]);
+    }
+  }
+
+  const exportChatHistory = () => {
+    const dataStr = JSON.stringify(messages, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = `chat-history-${new Date().toISOString().split('T')[0]}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
   }
 
   return (
@@ -252,9 +351,25 @@ const ChatToBook: React.FC = () => {
           <Link to="/dashboard" className="mr-4">
             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-gray-900" />
           </Link>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900">CHAT-TO-BOOK</h1>
             <p className="text-gray-600">自然な言葉で会計処理ができます</p>
+          </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={exportChatHistory}
+              className="flex items-center px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              <Download className="w-4 h-4 mr-1" />
+              履歴出力
+            </button>
+            <button
+              onClick={clearChatHistory}
+              className="flex items-center px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              履歴クリア
+            </button>
           </div>
         </div>
 
@@ -351,9 +466,9 @@ const ChatToBook: React.FC = () => {
                   <div className="flex justify-start">
                     <div className="bg-gray-100 px-4 py-2 rounded-lg">
                       <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full" style={{ animationDelay: '0.2s' }}></div>
                       </div>
                     </div>
                   </div>
@@ -367,12 +482,12 @@ const ChatToBook: React.FC = () => {
                   <button
                     onClick={toggleRecording}
                     className={`p-2 rounded-lg transition-colors ${
-                      isRecording 
+                      isListening 
                         ? 'bg-red-500 text-white' 
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                    {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                   </button>
                   <input
                     ref={inputRef}
@@ -391,6 +506,9 @@ const ChatToBook: React.FC = () => {
                   >
                     <Send className="w-5 h-5" />
                   </button>
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  ヒント: 「売上を記録」「経費を入力」「残高確認」などのキーワードを使用できます
                 </div>
               </div>
             </div>
@@ -465,6 +583,7 @@ const ChatToBook: React.FC = () => {
                 <p>• 「50万円の売上がありました」</p>
                 <p>• 「交通費で500円かかりました」</p>
                 <p>• 「現在の残高を教えて」</p>
+                <p>• 「チャット履歴をクリアして」</p>
               </div>
             </div>
           </div>
@@ -474,4 +593,4 @@ const ChatToBook: React.FC = () => {
   )
 }
 
-export default ChatToBook
+export default memo(ChatToBook)
